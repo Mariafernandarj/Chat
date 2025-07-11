@@ -11,6 +11,7 @@ public class MessageManager {
     private Map<String, Object> users;
     private Map<String, Object> rooms;
     private Map<String, Object> invitations;
+    private Map<String, Object>  answer = new HashMap<>();
 
     private MessageManager() {
 	this.users = new HashMap<>();
@@ -70,7 +71,6 @@ public class MessageManager {
     public void identifyUser(Client client, JSONObject message) {
 	throws IOException {
 	    String username = message.optString("username");
-	    Map<String, Object> answer = new HashMap<>();
 
 	    if (users.containsKey(username)) {
 		//Usuario ya existe
@@ -114,7 +114,6 @@ public class MessageManager {
 	for(Map<String, User> entry : users.entrySet()) {
 	    userList.put(entry.getKey(), entry.getValue().getStatus());
 	    //Crear respuesta
-	    Map<String, Object>  answer = new HashMap<>();
 	    answer.put("type","USER_LIST");
 	    answer.put("users",userList);
 
@@ -122,38 +121,63 @@ public class MessageManager {
 	    Gson gson = new Gson();
 	    String json = gson.toJson(respuesta);
 
-	    try {
-		PrintWriter out = new PrintWriter(new OutputStreamWriter(client.getOutputStream(), "UTF-8"),true );
-		out.println(json);
- 	    } catch(IOException e) {
-		e.printStackTrace();	
-	    }  
+	    sendJsonResponse(client, answer);
 	}
     }
-    public void sendPrivateText(Cliente cliente, JSONObject message ) {
-	String recipient = message.optString("username");
-	String text = message.optString("text");
+    
+    public void sendPrivateText(Cliente cliente, Map<String, String> message ) {
+	String recipient = message.get("username");
+	String text = message.get("text");
+	
 	if (users.containsKey(recipient)) {
-	    Cliente clientDestination = this.usuarios(recipient, "client");
-	    Map<String, Object>  answer = new HashMap<>();
+	    Cliente clientDestination = usuarios.get(recipient).getClient();
+ 
 	    answer.put("type", "TEXT_FROM");
 	    answer.put("username", this.getUserByClient(client));
 	    answer.put("text", texto);
-	    clientDestination.
+	    
+	    sendJsonResponse(clientDestination, answer);
 	} else {
 	    answer.put("type", "RESPONSE");
 	    answer.put("operation", "TEXT");
 	    answer.put("result", "NO_SUCH_USER");
 	    answer.put("extra", recipient);
+	    
+	    sendJsonResponse(clientDestination, answer);
 	}
     }
-    public void sendPublicText() {}
-    public void createRoom() {}
+    public void sendPublicText(Client client, Map<String, String> message) {
+	String text = message.get("text");
+	
+	answer.put("type", "Public_TEXT_FROM");
+	answer.put("username", getUserByClient(client));
+	answer.put("text", text);
+
+	for(Map<String, User> entry : users.entrySet()) {
+	    Client clientDestination = entry.getValue().getClient();
+	    sendJsonResponse(clientDestination, answer);
+	}
+    }
+    
+    public void createRoom(Cliente cliente, Map<String, String> message) {
+	String roomName = message.get();
+    }
     public void inviteUsers() {}
     public void joinARoom() {}
     public void sendUserListToTheRoom() {}
     public void sendTextToTheRoom() {}
     public void leaveRoom() {}
     public void disconnectUser(){}
-
+    
+    //Métodos auxiliares
+    private void sendJsonResponse(Client client, Map<String, Object> response) {
+	Gson gson = new Gson();
+	try {
+	    PrintWriter out = new PrintWriter(new OutputStreamWriter(client.getOutputStream(), "UTF-8"),true );
+	    out.println(gson.toJson(response));
+	} catch(IOException e) {
+	    e.printStackTrace();
+	    return false;
+	}   
+    }
 }
