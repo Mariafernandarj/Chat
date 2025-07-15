@@ -9,9 +9,12 @@ import java.util.*;
 
 public class MessageManager {
     private Map<String, Object> users;
-    private Map<String, Object> rooms;
+    //private Map<String, Object> rooms;
     private Map<String, Object> invitations;
     private Map<String, Object>  answer = new HashMap<>();
+
+    private Map<String, List <String>> rooms = new ConcurrentHashMap<>();
+    private Map<Socket, String> usersForSocket = new ConcurrentHashMap<>();  
 
     private MessageManager() {
 	this.users = new HashMap<>();
@@ -159,13 +162,38 @@ public class MessageManager {
 	}
     }
     
-    public void createRoom(Cliente cliente, Map<String, String> message) {
-	String roomName = message.get();
+    public void createRoom(Cliente client, Map<String, String> message) {
+	String roomName = message.optString("roomname");
+
+	//crear sala clase salas
+	if (rooms.containsKey(roomName)){
+	    answer.put("type", "RESPONSE");
+	    answer.put("operation", "NEW_ROOM");
+	    answer.put("result", "ROOM_ALREADY_EXISTS");
+	    answer.put("extra", roomName);
+	} else {
+	    String user = getUserByClient(client);
+
+	    answer.put("type", "RESPONSE");
+	    answer.put("operation", "NEW_ROOM");
+	    answer.put("result", "SUCCESS");
+	    answer.put("extra", roomName);
+
+	    sendJsonResponse(client, answer);
+	}
     }
-    public void inviteUsers() {}
-    public void joinARoom() {}
-    public void sendUserListToTheRoom() {}
-    public void sendTextToTheRoom() {}
+    public void inviteUsers(Client client, Map<String, String> message) {
+	String roomName = message.optString();
+    }
+    public void joinARoom(Client client, Map<String, String> message ) {
+	
+    }
+    public void sendUserListToTheRoom(Client client, Map<String, String> message) {
+	
+    }
+    public void sendTextToTheRoom(Client client, Map<String, String> message) {
+	
+    }
     public void leaveRoom() {}
     public void disconnectUser(){}
     
@@ -180,4 +208,15 @@ public class MessageManager {
 	    return false;
 	}   
     }
+
+    private String getUserForSocket(Socket client) {
+	return usersForSocket.getOrDefault(client, "unknown");
+    }
+
+    def obtener_usuario_por_cliente(self, cliente):
+    for username, datos in self.usuarios.items():
+        if datos["cliente"] == cliente:
+            return username
+    return None
+
 }
