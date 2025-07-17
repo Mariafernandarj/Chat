@@ -1,33 +1,31 @@
 import org.json.JSONObject;
-import org.json.JSONArray;
 import java.util.HashMap;
 import java.util.Map;
-import com.google.gson.Gson;
-import java.io.*;
-import java.util.*;
-
+import java.io.PrintWriter;
+import java.net.Socket;
 
 public class MessageManager {
-    private Map<String, Object> users;
-    //private Map<String, Object> rooms;
-    private Map<String, Object> invitations;
-    private Map<String, Object>  answer = new HashMap<>();
-
-    private Map<String, List <String>> rooms = new ConcurrentHashMap<>();
-    private Map<Socket, String> usersForSocket = new ConcurrentHashMap<>();  
-
+    private Map<String, Map<String, Object>> users;
+    private Map<String, Map<String, Object>> invitations;
+    private Map<String, Map<String, Object>>  answer;
+    
+    // private JSONObject answer = new JSONObject();
+    // private String username = jsonMessage.optString("username");
+    // private PrintWriter out = new PrintWriter(client.getOutoutStream(), true);
     private MessageManager() {
 	this.users = new HashMap<>();
 	this.rooms = new HashMap<>();
 	this.invitations = new HashMap<>();
     }
 
-    public processMessage(Client client, String jsonMessage) {
+    public processMessage(Socket client, String jsonMessage) {
+	JSONObject message = new JSONObject(jsonMessage);
+	String type = message.optString("type");
+       	
 	try {
-	    JSONObject message = new JSONObject(jsonMessage);
-	    String type = message.optString("type");
-
-	    switch () {
+	    PrintWriter out = new PrintWriter(client.getOutoutStream(), true);
+	
+	    switch (type) {
 	    case "IDENTIFY" :
 		identifyUser(client, message); //identificar usuarios
 		break;
@@ -67,14 +65,17 @@ public class MessageManager {
 		sendInvalidResponse(client);//enviar_respuesta_invalida
 	    }	    
 	} catch (IOException e) {
-	   sendInvalidResponse(client); 
+	    e.printStackTrace(); 
 	}
     }
 
-    public void identifyUser(Client client, JSONObject message) {
-	throws IOException {
-	    String username = message.optString("username");
-
+    public void identifyUser(Socket client, JSONObject message) {
+	String username = message.optString("username");
+	JSONObject answer = new JSONObject();
+	
+	try {
+	    PrintWriter out = new PrintWriter(client.getOutoutStream(), true);
+	    
 	    if (users.containsKey(username)) {
 		//Usuario ya existe
 		answer.put("type","RESPONSE");
@@ -83,33 +84,29 @@ public class MessageManager {
 		answer.put("extra",username);
 	    } else {
 		//Nuevo usuario
-		User newUser = new User(username, "ACTIVE", client);
-		users.put(username, newUser);
+		Map<String, Object> userData = new HasMap<>();
+		userData.put(username, newUser);
 
-		answer.put("type","RESPONSE");
-		answer.put("operation","IDENTIFY");
-		answer.put("result","SUCCESS");
-		answer.put("extra",username);
+		userData.put("type","RESPONSE");
+		userData.put("operation","IDENTIFY");
+		userData.put("result","SUCCESS");
+		userData.put("extra",username);
 
 		notifyNewUser(username); //notificar_nuevo_usuario
 	    }
-	    Gson gson = new Gson();
-	    String json = gson.toJson(answer);
-	    
-	    PrintWriterbout = new PrintWriter(new OutputStreamWriter(client.getOutputStream(), "UTF-8"), true);
-	    out.println(json);
+	    out.println(answer.toString());   
+	} catch (Exception e) {
+	    e.printStackTrace();
 	}
     }
     
-    public void changeStatus(Client client, JSONObject message) {
-	throws IOException {
-	    String username = this.getUserByClient(client); //obtener_usuario_por_cliente
+    public void changeStatus(Socket client, JSONObject message) {
+	    String username = getUserByClient(client); //obtener_usuario_por_cliente
 	    if (username != null && !username.isEmpty()) {
 		String newStatus = message.optString("status");
 		users.get(username).put("status", newStatus) ;
 		notifyNewStatus(username, newStatus);
 	    }
-	}
     }
     
     public void sendUserList(Cliente cliente) {
