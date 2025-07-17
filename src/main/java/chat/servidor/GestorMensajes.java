@@ -194,9 +194,6 @@ public class MessageManager {
     public void sendTextToTheRoom(Client client, Map<String, String> message) {
 	
     }
-    public void leaveRoom() {}
-    public void disconnectUser(){}
-    
     //Métodos auxiliares
     private void sendJsonResponse(Client client, Map<String, Object> response) {
 	Gson gson = new Gson();
