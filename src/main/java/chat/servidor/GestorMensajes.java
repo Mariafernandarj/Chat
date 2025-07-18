@@ -111,106 +111,181 @@ public class MessageManager {
     
     public void sendUserList(Cliente cliente) {
 	Map<String, String> userList = new HashMap<>();
-	for(Map<String, User> entry : users.entrySet()) {
-	    userList.put(entry.getKey(), entry.getValue().getStatus());
-	    //Crear respuesta
-	    answer.put("type","USER_LIST");
-	    answer.put("users",userList);
-
-	    //Convertir a JSON y enviar
-	    Gson gson = new Gson();
-	    String json = gson.toJson(respuesta);
-
-	    sendJsonResponse(client, answer);
+	for(Map.Entry<String, Map<String, Object>> entry : users.entrySet()) {
+	    userList.put(entry.getKey(), (String) entry.getValue().get("status"));
 	}
+
+	JSONObject answer = new JSONObject();
+	//Crear respuesta
+	answer.put("type","USER_LIST");
+	answer.put("users",userList);
+
+	//Convertir a JSON y enviar
+	Gson gson = new Gson();
+	String json = gson.toJson(respuesta);
+
+	try {
+	    PrintWriter out =  new PrintWriter(client.getOutputStream(), true);
+	    out.println(answer.toString());
+	} catch (Exception e) {
+	    e.printStackTrace();
+	}
+	
     }
     
-    public void sendPrivateText(Cliente cliente, Map<String, String> message ) {
+    public void sendPrivateText(Socket cliente, JSONObject message ) {
 	String recipient = message.get("username");
 	String text = message.get("text");
 	
-	if (users.containsKey(recipient)) {
-	    Cliente clientDestination = usuarios.get(recipient).getClient();
- 
-	    answer.put("type", "TEXT_FROM");
-	    answer.put("username", this.getUserByClient(client));
-	    answer.put("text", texto);
+	try {
+	    PrintWriter out =  new PrintWriter(client.getOutputStream(), true);
+	     
+	    if (users.containsKey(recipient)) {
+		Socket clientDestination = usuarios.get(recipient).get("client");
+		PrintWriter outDestination =  new PrintWriter(clientDestination.getOutputStream(), true);
 	    
-	    sendJsonResponse(clientDestination, answer);
-	} else {
-	    answer.put("type", "RESPONSE");
-	    answer.put("operation", "TEXT");
-	    answer.put("result", "NO_SUCH_USER");
-	    answer.put("extra", recipient);
+		JSONObject answer = new JSONObject();
+		answer.put("type", "TEXT_FROM");
+		answer.put("username", this.getUserByClient(client));
+		answer.put("text", texto);
 	    
-	    sendJsonResponse(clientDestination, answer);
-	}
-    }
-    public void sendPublicText(Client client, Map<String, String> message) {
-	String text = message.get("text");
-	
-	answer.put("type", "Public_TEXT_FROM");
-	answer.put("username", getUserByClient(client));
-	answer.put("text", text);
-
-	for(Map<String, User> entry : users.entrySet()) {
-	    Client clientDestination = entry.getValue().getClient();
-	    sendJsonResponse(clientDestination, answer);
+		outDestination.println(answer.toString());
+	    } else {
+		JSONObject answer = new JSONObject();
+		answer.put("type", "RESPONSE");
+		answer.put("operation", "TEXT");
+		answer.put("result", "NO_SUCH_USER");
+		answer.put("extra", recipient);
+	    
+		out.println(answer.toString());
+	    }
+	} catch (Exception e) {
+	    e.printStackTrace();
 	}
     }
     
-    public void createRoom(Cliente client, Map<String, String> message) {
-	String roomName = message.optString("roomname");
+    public void sendPublicText(Client client, Map<String, String> message) {
+	String text = message.get("text");
+	String sender = getUserByClient(client);
 
-	//crear sala clase salas
-	if (rooms.containsKey(roomName)){
-	    answer.put("type", "RESPONSE");
-	    answer.put("operation", "NEW_ROOM");
-	    answer.put("result", "ROOM_ALREADY_EXISTS");
-	    answer.put("extra", roomName);
-	} else {
-	    String user = getUserByClient(client);
+	JSONObject answer = new JSONObject();
+	answer.put("type", "Public_TEXT_FROM");
+	answer.put("username",sender );
+	answer.put("text", text);
 
-	    answer.put("type", "RESPONSE");
-	    answer.put("operation", "NEW_ROOM");
-	    answer.put("result", "SUCCESS");
-	    answer.put("extra", roomName);
-
-	    sendJsonResponse(client, answer);
+	for(Map.Entry<String, Map<String, Object>> entry : users.entrySet()) {
+	    try {
+		Socket clientUser = (Socket) entry.getValue().get("client");
+		PrintWriter out =  new PrintWriter(clientDestination.getOutputStream(), true);
+		out.println(answer.toString());
+	    } catch (Exception e) {
+		e.printStackTrace();
+	    }
 	}
     }
-    public void inviteUsers(Client client, Map<String, String> message) {
-	String roomName = message.optString();
-    }
-    public void joinARoom(Client client, Map<String, String> message ) {
-	
-    }
-    public void sendUserListToTheRoom(Client client, Map<String, String> message) {
-	
-    }
-    public void sendTextToTheRoom(Client client, Map<String, String> message) {
-	
-    }
-    //Métodos auxiliares
-    private void sendJsonResponse(Client client, Map<String, Object> response) {
-	Gson gson = new Gson();
+    
+    public void createRoom(Cliente client, JSONObject message) {
+	String roomName = message.optString("roomname");
+
 	try {
-	    PrintWriter out = new PrintWriter(new OutputStreamWriter(client.getOutputStream(), "UTF-8"),true );
-	    out.println(gson.toJson(response));
-	} catch(IOException e) {
+	    PrintWriter out =  new PrintWriter(client.getOutputStream(), true);
+	    JSONObject answer = new JSONObject();
+	    //crear sala clase salas
+	    if (rooms.containsKey(roomName)) {
+		answer.put("type", "RESPONSE");
+		answer.put("operation", "NEW_ROOM");
+		answer.put("result", "ROOM_ALREADY_EXISTS");
+		answer.put("extra", roomName);
+	    } else {
+		List<String> members = new ArrayList<>();
+		members.add(getUserByClient(client));
+		rooms.put(roomName, members);
+	    
+		answer.put("type", "RESPONSE");
+		answer.put("operation", "NEW_ROOM");
+		answer.put("result", "SUCCESS");
+		answer.put("extra", roomName);	    
+	    }
+	    out.println(answer.toString());
+	} catch (Exception e) {
 	    e.printStackTrace();
-	    return false;
-	}   
+	}
     }
 
-    private String getUserForSocket(Socket client) {
-	return usersForSocket.getOrDefault(client, "unknown");
+    public void inviteUsers(Socket client, JSONObject message) {
+	String roomName = message.optString();
+    
+	try {
+	
+	    PrintWriter out =  new PrintWriter(client.getOutputStream(), true);
+	     
+	    if (!rooms.containsKey(roomName)) {
+		JSONObject answer = new JSONObject();
+		answer.put("type", "RESPONSE");
+		answer.put("operation", "INVITE");
+		answer.put("result", "NO_SUCH_ROOM");
+		answer.put("extra", roomName);
+
+		out.println(answer.toString());
+		return();
+	    }
+
+	    JSONArray guestsJson = message.getJSONArray("username");
+	    List<String> guests = new ArrayList<>();
+	    for (int i = 0; i < guestsJson.length(); i++) {
+		guests.add(guestsJson.getString(i));
+	    }
+	
+	    for (String guest : guests) {
+		if (users.containsKey(guest)) {
+		    if (!invitations.containsKey(roomName)) {
+			invitations.put(roomName, nem ArrayList<>());
+		    }
+		    invitations.get(roomName).add(guest);
+		
+		    JSONObject invitation = new JSONObject();
+		    invitation.put("type", "INVITATION");
+		    invitation.put("username", guest );
+		    invitation.put("roomname", roomName);
+
+		    Socket invalidClient = (Socket) users.get(guest).get("client");
+		    PrintWriter outGuest =  new PrintWriter(invalidClient.getOutputStream(), true);
+		    invalidGuest.println(invitation.toString());
+		} else {
+		    JSONObject answer = new JSONObject();
+		    answer.put("type", "RESPONSE");
+		    answer.put("operation", "INVITE");
+		    answer.put("result", "NO_SUCH_USER");
+		    answer.put("extra", guest);
+			 
+		    out.println(respuesta.toString());
+		    return;
+		}
+	    } 
+	} catch (Exception e) {
+	    e.printStackTrace();
+	}
     }
 
-    def obtener_usuario_por_cliente(self, cliente):
-    for username, datos in self.usuarios.items():
-        if datos["cliente"] == cliente:
-            return username
-    return None
-
+    public void joinARoom(Socket client, JSONObject message) {
+	
+    }
+    public void sendUserListToTheRoom(Socket client, JSONObject message) {
+	
+    }
+    public void sendTextToTheRoom(Socket client, JSONObject message) {
+	
+    }
+   
+    //Métodos auxiliares
+    
+    private String getUserByClient(Socket client){
+	for (Map.Entry<String, Map<String, Object>> entry : users.entrySet()) {
+	    if (entry.getValue().get("client").equals(client)) {
+		return entry.getKey();
+	    }
+	}
+	return null;
+    }
+    
 }
