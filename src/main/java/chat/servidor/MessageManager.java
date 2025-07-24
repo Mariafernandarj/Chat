@@ -7,7 +7,7 @@ import java.net.Socket;
 public class MessageManager {
     private Map<String, Map<String, Object>> users;
     private Map<String, Map<String, Object>> invitations;
-    private Map<String, Map<String, Object>>  answer;
+    private Map<String, Map<String, Object>>  rooms;
     
     // private JSONObject answer = new JSONObject();
     // private String username = jsonMessage.optString("username");
@@ -268,13 +268,100 @@ public class MessageManager {
     }
 
     public void joinARoom(Socket client, JSONObject message) {
-	
+	String roomName = message.optString("roomname");
+	String username = getUserByClient(client);
+
+	try {
+	    PrintWriter out = new PrintWriter(client.getOutPutStream(), true);
+	    JSONObject answer = new JSONObject();
+
+	    if (rooms.containsKey(roomName) && invitations.containsKey(roomName) && invitations.get(roomName).contains(username)) {
+
+		rooms.get(roomName).add(username);
+
+		answer.put("type","RESPONSE");
+		answer.put("operation","JOIN_ROOM");
+		answer.put("result","SUCCESS");
+		answer.put("extra", roomName );
+
+		out.println(answer.toString());
+		notifyUnionRoom(username, roomName);
+	    } else {
+		answer.put("type","RESPONSE");
+		answer.put("operation","JOIN_ROOM");
+		answer.put("result","NOT_INVITED");
+		answer.put("extra", roomName );
+
+		out.println(answer.toString());
+	    }
+	} catch (Exception e) {
+	    e.printStackTrace();
+	}
     }
+    
     public void sendUserListToTheRoom(Socket client, JSONObject message) {
-	
+	String roomName = message.optString("roomname");
+
+	try {
+	  PrintWriter out = new PrintWriter(client.getOutPutStream(), true);
+	  JSONObject answer = new JSONObject();
+
+	  if (rooms.containsKey(roomName)) {
+	      Map<String, String> roomUser = new HashMap<>();
+	      for (String user : rooms.get(roomName)) {
+		  roomUser.put(user, (String) users.get(user).get("status"));
+	      }
+	      answer.put("type","ROOM_USER_LIST");
+	      answer.put("operation",roomName );
+	      answer.put("users", roomUser);
+	  } else {
+	      answer.put("type","RESPONSE");
+	      answer.put("operation", "ROOM_USERS");
+	      answer.put("result", "NO_SUCH_ROOM");
+	      answer.put("extra", roomName);
+	  }
+	  out.println(answer.toString());
+	} catch (Exception e) {
+	    e.printStackTrace();
+	}	
     }
+    
     public void sendTextToTheRoom(Socket client, JSONObject message) {
-	
+	String roomName = message.optString("roomname");
+	String text = mesage.optString("text");
+	String username = getUserByClient(client);
+
+	try {
+	    PrintWriter out = new PrintWriter(client.getOutPutStream(), true);
+	    JSONObject answer = new JSONObject();
+
+	    if (rooms.containsKey(roomName) && rooms.get(roomName).contains(username)) {
+		JSONObject roomMessage = new JSONObject();
+		roomMessage.put("type", "ROOM_TEXT_FROM");
+		roomMessage.put("roomname", roomName);
+		roomMessage.put("username", username);
+		roomMessage.put("text", text);
+
+		for (String user : rooms.get(roomName)) {
+		    Socket clientDEstination = (Socket) users.get(user).get("client");
+		    PrintWriter out = new PrintWriter(client.getOutPutStream(), true);
+		    outDestination.println(messageRoom.toString());
+		}
+	    } else {
+		answer.put("type","RESPONSE");
+		answer.put("operation", "ROOM_USERS");
+		if (!rooms.containsKey(roomName)) {
+		    answer.put("result", "NO_SUCH_ROOM");
+		} else {
+		    answer.put("result", "NOT_IN_ROOM");
+		}
+		answer.put("extra", roomName);
+
+		out.println(answer.toString());
+	    }   
+	}  catch (Exception e) {
+	    e.printStackTrace();
+	}	
     }
    
     //Métodos auxiliares
@@ -287,5 +374,27 @@ public class MessageManager {
 	}
 	return null;
     }
-    
+
+    private void notifyUnionRoom(String newUser, String roomName) {
+	if (!rooms.containsKey(roomName)) return;
+
+	JSONObject notification = new JSONObject();
+	notification.put("type", "ROOM_NOTIFICATION");
+	notification.put("roomname", roomName);
+	notification.put("message", "El usuario " + newUser + "se ha unido a la sala");
+	notification.put("new_user", newUser);
+
+	for (String user : rooms.get(roomName)) {
+	    if (!user.equals(newUser)) {
+		try {
+		    Socket client = (Socket) users.get(user).get("client");
+		    PrintWriter out = new PrintWriter(client.getOutPutStream(), true);
+		    out.println(answer.toString()); 
+		} catch (Exception e) {
+		    e.printStackTrace();
+		}
+	    }
+	}
+    }
+
 }
